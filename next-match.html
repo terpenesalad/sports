@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Next Match</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Helvetica+Neue:wght@300;400;700&display=swap');
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    background: #0f0f0f;
+    color: #e8e8e8;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    padding: 48px 32px 64px;
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  header { margin-bottom: 56px; }
+
+  .wordmark {
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #444;
+  }
+
+  .cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card {
+    padding: 28px 24px;
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+    min-height: 150px;
+    display: flex;
+    align-items: stretch;
+    transition: min-height 0.3s ease;
+  }
+
+  .card-content {
+    flex: 1;
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding-right: 120px;
+  }
+
+  .card-crest {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+    width: 100px;
+    height: 100px;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.85;
+  }
+
+  .card-crest img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
+  }
+
+  .team-name {
+    font-size: 25px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin-bottom: 5px;
+  }
+
+  .league {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+    opacity: 0.55;
+  }
+
+  .fixture-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .opponent { font-size: 13px; font-weight: 300; }
+
+  .vs {
+    font-size: 10px;
+    margin-right: 4px;
+    opacity: 0.5;
+  }
+
+  .time-block { text-align: right; flex-shrink: 0; }
+
+  .time-melbourne {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  .date-str {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 3px;
+    opacity: 0.55;
+  }
+
+  .countdown {
+    margin-top: 12px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.55;
+  }
+
+  .countdown .val { font-weight: 700; opacity: 1; }
+
+  .pill-live {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    margin-left: 8px;
+    vertical-align: middle;
+    animation: blink 1.4s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  /* Live score display */
+  .live-score {
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .score-team {
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    flex: 1;
+  }
+
+  .score-team.home { text-align: left; }
+  .score-team.away { text-align: right; }
+
+  .score-nums {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    padding: 0 12px;
+    flex-shrink: 0;
+  }
+
+  .score-minute {
+    margin-top: 6px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.5;
+    text-align: center;
+  }
+
+  .score-loading {
+    margin-top: 14px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.4;
+  }
+
+  .venue {
+    font-size: 10px;
+    margin-top: 5px;
+    opacity: 0.4;
+  }
+
+  .updated {
+    margin-top: 40px;
+    font-size: 10px;
+    color: #2a2a2a;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Are we sleeping tonight?</div>
+</header>
+
+<div class="cards" id="cards"></div>
+<div class="updated" id="updated"></div>
+
+<script>
+  const MELBOURNE_OFFSET = 11;
+
+  const fixtures = [
+    {
+      team: "West Ham United",
+      teamShort: "West Ham",
+      league: "FA Cup — 5th Round",
+      opponent: "Brentford",
+      opponentShort: "Brentford",
+      home: true,
+      utc: "2026-03-09T19:30:00Z",
+      venue: "London Stadium",
+      bg: "#7A263A",
+      fg: "#FFFFFF",
+      crest: "https://resources.premierleague.com/premierleague/badges/100/t21.png",
+      sport: "football"
+    },
+    {
+      team: "Wycombe Wanderers",
+      teamShort: "Wycombe",
+      league: "EFL League One",
+      opponent: "Bolton Wanderers",
+      opponentShort: "Bolton",
+      home: false,
+      utc: "2026-03-07T15:00:00Z",
+      venue: "Toughsheet Community Stadium",
+      bg: "#1B3F8B",
+      fg: "#FFFFFF",
+      crest: "https://a.espncdn.com/i/teamlogos/soccer/500/344.png",
+      sport: "football"
+    },
+    {
+      team: "Carlton Blues",
+      teamShort: "Carlton",
+      league: "AFL — Round 1",
+      opponent: "Richmond",
+      opponentShort: "Richmond",
+      home: false,
+      utc: "2026-03-12T08:30:00Z",
+      venue: "MCG, Melbourne",
+      bg: "#002B5C",
+      fg: "#FFFFFF",
+      crest: "https://upload.wikimedia.org/wikipedia/en/thumb/9/93/Carlton_Football_Club_logo.svg/200px-Carlton_Football_Club_logo.svg.png",
+      sport: "afl"
+    }
+  ];
+
+  // Live score cache: keyed by fixture index
+  const scoreCache = {};
+  const scoreFetching = {};
+
+  function toMelbourne(d) {
+    return new Date(d.getTime() + MELBOURNE_OFFSET * 3600 * 1000);
+  }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function formatTime(d) {
+    let h = d.getUTCHours(), m = d.getUTCMinutes();
+    const ampm = h >= 12 ? 'pm' : 'am';
+    h = h % 12 || 12;
+    return `${h}:${pad(m)}${ampm}`;
+  }
+  function formatDate(d) {
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${days[d.getUTCDay()]} ${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
+  }
+  function getCountdown(matchUtc, now) {
+    const diff = matchUtc - now;
+    if (diff <= 0) return null;
+    const mins = Math.floor(diff / 60000);
+    const d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), m = mins % 60;
+    if (d > 0) return `${d}d ${h}h`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  }
+  function isLive(matchUtc, now) {
+    const diff = now - matchUtc;
+    return diff >= 0 && diff < 135 * 60 * 1000;
+  }
+
+  async function fetchLiveScore(idx) {
+    if (scoreFetching[idx]) return;
+    scoreFetching[idx] = true;
+
+    const f = fixtures[idx];
+    const homeTeam = f.home ? f.teamShort : f.opponentShort;
+    const awayTeam = f.home ? f.opponentShort : f.teamShort;
+
+    const prompt = f.sport === 'afl'
+      ? `What is the current live score for the AFL match between ${homeTeam} and ${awayTeam} being played right now today? Reply in JSON only, no markdown, like: {"home":"${homeTeam}","away":"${awayTeam}","homeScore":"X.X (XX)","awayScore":"X.X (XX)","minute":"Q2 8:23","found":true} — or {"found":false} if the match is not currently live or you cannot find the score.`
+      : `What is the current live score for the football match between ${homeTeam} and ${awayTeam} being played right now today? Reply in JSON only, no markdown, like: {"home":"${homeTeam}","away":"${awayTeam}","homeScore":0,"awayScore":0,"minute":"43'","found":true} — or {"found":false} if not live.`;
+
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+
+      const data = await res.json();
+      const text = data.content
+        .filter(b => b.type === "text")
+        .map(b => b.text)
+        .join("");
+
+      const clean = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+      scoreCache[idx] = parsed;
+    } catch (e) {
+      scoreCache[idx] = { found: false };
+    }
+
+    scoreFetching[idx] = false;
+    render();
+  }
+
+  function render() {
+    const now = new Date();
+    const cards = document.getElementById('cards');
+    cards.innerHTML = '';
+
+    fixtures.forEach((f, idx) => {
+      const matchUtc = new Date(f.utc);
+      const matchMelb = toMelbourne(matchUtc);
+      const live = isLive(matchUtc, now);
+      const countdown = getCountdown(matchUtc, now);
+
+      // Trigger score fetch if live and not yet cached/fetching
+      if (live && scoreCache[idx] === undefined && !scoreFetching[idx]) {
+        fetchLiveScore(idx);
+      }
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.background = f.bg;
+      card.style.color = f.fg;
+
+      const opponentHtml = f.home
+        ? `<span class="vs">vs</span> ${f.opponent}`
+        : `<span class="vs">@</span> ${f.opponent}`;
+
+      const liveTag = live
+        ? `<span class="pill-live" style="background:${f.fg};color:${f.bg}">Live</span>` : '';
+
+      // Build live score block
+      let liveScoreHtml = '';
+      if (live) {
+        const cached = scoreCache[idx];
+        if (cached === undefined) {
+          liveScoreHtml = `<div class="score-loading">Fetching score…</div>`;
+        } else if (cached.found) {
+          const homeTeam = f.home ? f.teamShort : f.opponentShort;
+          const awayTeam = f.home ? f.opponentShort : f.teamShort;
+          const homeScore = f.home ? cached.homeScore : cached.awayScore;
+          const awayScore = f.home ? cached.awayScore : cached.homeScore;
+          liveScoreHtml = `
+            <div class="live-score">
+              <div class="score-team home">${homeTeam}</div>
+              <div class="score-nums">${homeScore} – ${awayScore}</div>
+              <div class="score-team away">${awayTeam}</div>
+            </div>
+            ${cached.minute ? `<div class="score-minute">${cached.minute}</div>` : ''}
+          `;
+        } else {
+          liveScoreHtml = `<div class="score-loading">Score unavailable</div>`;
+        }
+      }
+
+      const countdownHtml = live ? ''
+        : countdown
+          ? `<div class="countdown">In <span class="val">${countdown}</span></div>`
+          : `<div class="countdown" style="opacity:0.2">Passed</div>`;
+
+      card.innerHTML = `
+        <div class="card-content">
+          <div>
+            <div class="team-name">${f.team}${liveTag}</div>
+            <div class="league">${f.league}</div>
+          </div>
+          <div>
+            <div class="fixture-row">
+              <div class="opponent">${opponentHtml}</div>
+              <div class="time-block">
+                <div class="time-melbourne">${formatTime(matchMelb)}</div>
+                <div class="date-str">${formatDate(matchMelb)} · AEDT</div>
+              </div>
+            </div>
+            <div class="venue">${f.venue}</div>
+            ${liveScoreHtml}
+            ${countdownHtml}
+          </div>
+        </div>
+        <div class="card-crest">
+          <img src="${f.crest}" alt="${f.team}" onerror="if(this.dataset.tried){this.style.display='none'}else{this.dataset.tried=1;this.src='https://a.espncdn.com/i/teamlogos/afl/500/carlton.png'}" />
+        </div>
+      `;
+
+      cards.appendChild(card);
+    });
+
+    document.getElementById('updated').textContent = `Updated ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  }
+
+  render();
+
+  // Re-render every 30s (time/countdown updates)
+  setInterval(render, 30000);
+
+  // Re-fetch live scores every 60s
+  setInterval(() => {
+    const now = new Date();
+    fixtures.forEach((f, idx) => {
+      const matchUtc = new Date(f.utc);
+      if (isLive(matchUtc, now)) {
+        scoreCache[idx] = undefined; // clear cache to force refetch
+        fetchLiveScore(idx);
+      }
+    });
+  }, 60000);
+</script>
+</body>
+</html>
